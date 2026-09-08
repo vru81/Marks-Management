@@ -8,13 +8,13 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 export const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://127.0.0.1:5173,http://127.0.0.1:5174')
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:5173,https://marks-management-three.vercel.app')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
 app.disable('x-powered-by');
-app.use(cors({ origin: allowedOrigins }));
+app.use(cors({ origin: allowedOrigins,  credentials: true, }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
