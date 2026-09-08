@@ -1,0 +1,22 @@
+node_modules
+dist
+# Dependencies and build output
+node_modules/
+dist/
+
+# Local environment values and secrets
+.env
+.env.*
+!.env.example
+
+# Local tooling and generated files
+.vite
+.cache
+coverage
+!.env.example
+.vite
+.cache
+coverage
+*.log
+.DS_Store
+npm-debug.log*
