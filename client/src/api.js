@@ -71,11 +71,12 @@ export function getAssignableStudents(token, assignment, subject) {
   });
 }
 
-export function getMarks(token, assignment, subject) {
+export function getMarks(token, assignment, subject, exam) {
   const params = new URLSearchParams({
     class: assignment.class,
     division: assignment.division,
-    subject
+    subject,
+    exam
   });
 
   return request(`/api/me/marks?${params.toString()}`, {

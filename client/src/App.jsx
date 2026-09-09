@@ -157,7 +157,7 @@ export default function App() {
     try {
       const [studentData, markData] = await Promise.all([
         getAssignableStudents(token, selectedAssignment, selectedSubject),
-        getMarks(token, selectedAssignment, selectedSubject)
+        getMarks(token, selectedAssignment, selectedSubject, exam)
       ]);
 
       setStudents(studentData.students || []);
@@ -179,7 +179,7 @@ export default function App() {
 
   useEffect(() => {
     loadScope();
-  }, [token, selectedAssignmentKey, selectedSubject]);
+  }, [token, selectedAssignmentKey, selectedSubject, exam]);
 
   useEffect(() => {
     if (!validationToast) {
