@@ -2,6 +2,9 @@ import {
   AlertCircle,
   BookOpen,
   CheckCircle2,
+  ClipboardList,
+  GraduationCap,
+  Layers3,
   Loader2,
   LogIn,
   LogOut,
@@ -15,6 +18,7 @@ import { getAssignableStudents, getCurrentTeacher, getMarks, loginTeacher, regis
 
 const defaultExam = 'Unit Test 1';
 const tokenStorageKey = 'school_marks_teacher_token';
+const examOptions = ['Unit Test 1', 'Unit Test 2', 'Midterm Exam', 'Final Exam', 'Practical', 'Other'];
 
 function getAssignmentKey(assignment) {
   return `${assignment.class}-${assignment.division}`;
@@ -24,6 +28,10 @@ function findFirstSubject(assignment) {
   return assignment?.subjects?.[0] || '';
 }
 
+function getClasses(assignments) {
+  return [...new Set(assignments.map((assignment) => assignment.class))].sort((firstClass, secondClass) => firstClass - secondClass);
+}
+
 function formatError(error) {
   if (!error) {
     return '';
@@ -31,10 +39,6 @@ function formatError(error) {
 
   if (error.status === 401) {
     return `${error.message}. Please login again.`;
-  }
-
-  if (error.status === 403) {
-    return `${error.message}. You can only add marks for your assigned class, division, and subject.`;
   }
 
   if (error.status === 404) {
@@ -49,23 +53,33 @@ export default function App() {
   const [teacher, setTeacher] = useState(null);
   const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ teacherId: '1', email: '', password: '' });
+  const [selectedClass, setSelectedClass] = useState('');
   const [selectedAssignmentKey, setSelectedAssignmentKey] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [students, setStudents] = useState([]);
   const [marks, setMarks] = useState([]);
   const [exam, setExam] = useState(defaultExam);
+  const [selectedExamOption, setSelectedExamOption] = useState(defaultExam);
   const [scores, setScores] = useState({});
   const [maxMarks, setMaxMarks] = useState(50);
   const [checkingSession, setCheckingSession] = useState(Boolean(token));
   const [submittingAuth, setSubmittingAuth] = useState(false);
   const [loadingScope, setLoadingScope] = useState(false);
   const [savingStudentId, setSavingStudentId] = useState('');
+  const [inputErrors, setInputErrors] = useState({});
+  const [validationToast, setValidationToast] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const selectedAssignment = useMemo(
     () => teacher?.assignments.find((assignment) => getAssignmentKey(assignment) === selectedAssignmentKey),
     [selectedAssignmentKey, teacher]
+  );
+
+  const availableClasses = useMemo(() => getClasses(teacher?.assignments || []), [teacher]);
+  const availableDivisions = useMemo(
+    () => teacher?.assignments.filter((assignment) => String(assignment.class) === selectedClass) || [],
+    [selectedClass, teacher]
   );
 
   const markByStudentId = useMemo(() => {
@@ -76,25 +90,29 @@ export default function App() {
   }, [marks]);
 
   function applyTeacherSession(nextToken, nextTeacher) {
-    const firstAssignment = nextTeacher?.assignments?.[0];
-
     localStorage.setItem(tokenStorageKey, nextToken);
     setToken(nextToken);
     setTeacher(nextTeacher);
-    setSelectedAssignmentKey(firstAssignment ? getAssignmentKey(firstAssignment) : '');
-    setSelectedSubject(findFirstSubject(firstAssignment));
+    setSelectedClass('');
+    setSelectedAssignmentKey('');
+    setSelectedSubject('');
     setStudents([]);
     setMarks([]);
     setScores({});
+    setInputErrors({});
   }
 
   function logout() {
     localStorage.removeItem(tokenStorageKey);
     setToken('');
     setTeacher(null);
+    setSelectedClass('');
+    setSelectedAssignmentKey('');
+    setSelectedSubject('');
     setStudents([]);
     setMarks([]);
     setScores({});
+    setInputErrors({});
     setSuccess('Logged out.');
     setError('');
   }
@@ -125,17 +143,6 @@ export default function App() {
     restoreSession();
   }, []);
 
-  useEffect(() => {
-    if (!teacher || !selectedAssignment) {
-      setSelectedSubject('');
-      return;
-    }
-
-    if (!selectedAssignment.subjects.includes(selectedSubject)) {
-      setSelectedSubject(findFirstSubject(selectedAssignment));
-    }
-  }, [selectedAssignment, selectedSubject, teacher]);
-
   async function loadScope() {
     if (!token || !selectedAssignment || !selectedSubject) {
       setStudents([]);
@@ -156,6 +163,7 @@ export default function App() {
       setStudents(studentData.students || []);
       setMarks(markData.marks || []);
       setScores({});
+      setInputErrors({});
     } catch (scopeError) {
       if (scopeError.status === 401) {
         logout();
@@ -173,8 +181,33 @@ export default function App() {
     loadScope();
   }, [token, selectedAssignmentKey, selectedSubject]);
 
+  useEffect(() => {
+    if (!validationToast) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setValidationToast(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [validationToast]);
+
   function updateAuthForm(field, value) {
     setAuthForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function selectClass(classNumber) {
+    setSelectedClass(String(classNumber));
+    setSelectedAssignmentKey('');
+    setSelectedSubject('');
+  }
+
+  function selectDivision(assignment) {
+    setSelectedAssignmentKey(getAssignmentKey(assignment));
+    setSelectedSubject('');
+  }
+
+  function selectExam(examOption) {
+    setSelectedExamOption(examOption);
+    setExam(examOption === 'Other' ? '' : examOption);
   }
 
   async function handleAuthSubmit(event) {
@@ -228,11 +261,16 @@ export default function App() {
     const validationError = validateScore(student._id);
 
     if (validationError) {
-      setError(validationError);
+      setInputErrors((current) => ({ ...current, [student._id]: validationError }));
+      setValidationToast(validationError);
       setSuccess('');
       return;
     }
 
+    setInputErrors((current) => {
+      const { [student._id]: removedError, ...remainingErrors } = current;
+      return remainingErrors;
+    });
     setSavingStudentId(student._id);
     setError('');
     setSuccess('');
@@ -284,7 +322,7 @@ export default function App() {
           <p className="eyebrow">Marks console</p>
           <h1>Teacher-only mark entry</h1>
           <p className="hero-copy">
-            Login as one teacher. The backend uses your token to allow marks only for your assigned class, division, and subject.
+            Login as one teacher and choose an assigned class, division, and subject.
           </p>
         </div>
         {teacher ? (
@@ -305,6 +343,13 @@ export default function App() {
         <div className="alert success" role="status">
           <CheckCircle2 size={18} />
           <span>{success}</span>
+        </div>
+      ) : null}
+
+      {validationToast ? (
+        <div className="toast error-toast" role="alert">
+          <AlertCircle size={18} />
+          <span>{validationToast}</span>
         </div>
       ) : null}
 
@@ -366,74 +411,56 @@ export default function App() {
         </section>
       ) : (
         <>
-          <section className="teacher-strip">
-            <strong>{teacher.name}</strong>
-            <span>Teacher ID {teacher.id}</span>
-          </section>
-
-          <section className="controls-band">
-            <label>
-              Class and division
-              <select
-                value={selectedAssignmentKey}
-                onChange={(event) => setSelectedAssignmentKey(event.target.value)}
-                disabled={!teacher.assignments.length}
-              >
-                {teacher.assignments.map((assignment) => (
-                  <option key={getAssignmentKey(assignment)} value={getAssignmentKey(assignment)}>
-                    Class {assignment.class} - Division {assignment.division}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Subject
-              <select value={selectedSubject} onChange={(event) => setSelectedSubject(event.target.value)} disabled={!selectedAssignment}>
-                {selectedAssignment?.subjects.map((subject) => (
-                  <option key={subject} value={subject}>{subject}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Exam
-              <input value={exam} onChange={(event) => setExam(event.target.value)} placeholder="Unit Test 1" />
-            </label>
-
-            <label>
-              Max marks
-              <input
-                min="1"
-                type="number"
-                value={maxMarks}
-                onChange={(event) => setMaxMarks(event.target.value)}
-              />
-            </label>
-          </section>
-
-          <section className="workspace-grid">
-            <aside className="teacher-card">
-              <div className="section-title">
-                <BookOpen size={20} />
-                <h2>Your assignments</h2>
+          <section className="selection-flow" aria-label="Mark entry selection flow">
+            <article className="step-card completed-step">
+              <div className="step-heading">
+                <span className="step-number">1</span>
+                <GraduationCap size={20} />
+                <div><p>Teacher</p><h2>{teacher.name}</h2></div>
               </div>
+              <span className="step-detail">Teacher ID {teacher.id}</span>
+            </article>
 
-              {teacher.assignments.length === 0 ? <p className="muted">No assignments found for this teacher.</p> : null}
+            <article className="step-card">
+              <div className="step-heading"><span className="step-number">2</span><Layers3 size={20} /><div><p>Class</p><h2>Choose a class</h2></div></div>
+              <div className="choice-grid">
+                {availableClasses.map((classNumber) => <button className={`choice-card ${selectedClass === String(classNumber) ? 'selected' : ''}`} type="button" key={classNumber} onClick={() => selectClass(classNumber)}>Class {classNumber}</button>)}
+              </div>
+            </article>
 
-              {teacher.assignments.map((assignment) => (
-                <div className="assignment-pill" key={getAssignmentKey(assignment)}>
-                  <strong>Class {assignment.class}-{assignment.division}</strong>
-                  <span>{assignment.subjects.join(', ')}</span>
-                </div>
-              ))}
-            </aside>
+            {selectedClass ? <article className="step-card">
+              <div className="step-heading"><span className="step-number">3</span><UsersRound size={20} /><div><p>Division</p><h2>Choose a division</h2></div></div>
+              <div className="choice-grid">
+                {availableDivisions.map((assignment) => <button className={`choice-card ${selectedAssignmentKey === getAssignmentKey(assignment) ? 'selected' : ''}`} type="button" key={getAssignmentKey(assignment)} onClick={() => selectDivision(assignment)}>Division {assignment.division}</button>)}
+              </div>
+            </article> : null}
 
-            <section className="marks-panel">
+            {selectedAssignment ? <article className="step-card">
+              <div className="step-heading"><span className="step-number">4</span><BookOpen size={20} /><div><p>Subject</p><h2>Choose a subject</h2></div></div>
+              <div className="choice-grid">
+                {selectedAssignment.subjects.map((subject) => <button className={`choice-card ${selectedSubject === subject ? 'selected' : ''}`} type="button" key={subject} onClick={() => setSelectedSubject(subject)}>{subject}</button>)}
+              </div>
+            </article> : null}
+
+            {selectedSubject ? <article className="step-card exam-step">
+              <div className="step-heading"><span className="step-number">5</span><ClipboardList size={20} /><div><p>Exam</p><h2>Name this assessment</h2></div></div>
+              <div className="exam-fields">
+                <label>Exam name
+                  <select value={selectedExamOption} onChange={(event) => selectExam(event.target.value)}>
+                    {examOptions.map((examOption) => <option key={examOption} value={examOption}>{examOption}</option>)}
+                  </select>
+                </label>
+                {selectedExamOption === 'Other' ? <label>Custom exam name<input value={exam} onChange={(event) => setExam(event.target.value)} placeholder="Enter exam name" required /></label> : null}
+                <label>Maximum marks<input min="1" type="number" value={maxMarks} onChange={(event) => setMaxMarks(event.target.value)} /></label>
+              </div>
+            </article> : null}
+          </section>
+
+          {selectedAssignment && selectedSubject && exam.trim() ? <section className="marks-panel">
               <div className="panel-header">
                 <div className="section-title">
                   <UsersRound size={20} />
-                  <h2>Students</h2>
+                  <div><p className="eyebrow">Student entry sheet</p><h2>{selectedSubject} - {exam.trim()}</h2><p className="sheet-context">Class {selectedAssignment.class} / Division {selectedAssignment.division}</p></div>
                 </div>
                 <button className="text-button" type="button" onClick={loadScope} disabled={loadingScope || !selectedAssignment}>
                   {loadingScope ? <Loader2 className="spin" size={16} /> : <RefreshCcw size={16} />}
@@ -460,6 +487,7 @@ export default function App() {
                       {students.map((student) => {
                         const existingMark = markByStudentId[student._id];
                         const isSaving = savingStudentId === student._id;
+                        const inputError = inputErrors[student._id];
 
                         return (
                           <tr key={student._id}>
@@ -468,14 +496,22 @@ export default function App() {
                             <td>{existingMark ? `${existingMark.marksObtained}/${existingMark.maxMarks}` : 'Not added'}</td>
                             <td>
                               <input
-                                className="marks-input"
+                                aria-invalid={Boolean(inputError)}
+                                className={`marks-input ${inputError ? 'invalid' : ''}`}
                                 min="0"
                                 max={maxMarks}
                                 type="number"
                                 value={scores[student._id] ?? ''}
-                                onChange={(event) => setScores((current) => ({ ...current, [student._id]: event.target.value }))}
+                                onChange={(event) => {
+                                  setScores((current) => ({ ...current, [student._id]: event.target.value }));
+                                  setInputErrors((current) => {
+                                    const { [student._id]: removedError, ...remainingErrors } = current;
+                                    return remainingErrors;
+                                  });
+                                }}
                                 placeholder="0"
                               />
+                              {inputError ? <span className="input-error">{inputError}</span> : null}
                             </td>
                             <td>
                               <button className="save-button" type="button" onClick={() => handleSave(student)} disabled={isSaving}>
@@ -490,8 +526,7 @@ export default function App() {
                   </table>
                 </div>
               ) : null}
-            </section>
-          </section>
+            </section> : null}
         </>
       )}
     </main>

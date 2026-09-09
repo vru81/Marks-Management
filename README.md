@@ -2,7 +2,7 @@
 
 Express + MongoDB backend with a React frontend for teachers, class/division assignments, students, and marks.
 
-The key rule is enforced on every marks write and read: a teacher can add or view marks only for the exact class, division, and subject present in that teacher's `assignments` list.
+The teacher workspace dropdowns show the class, division, and subject combinations present in that teacher's `assignments` list.
 
 ## Setup
 
@@ -64,12 +64,12 @@ The React app is in `client/`. It lets a user:
 
 - Register a teacher account against teacher ID 1, 2, or 3.
 - Login as one teacher.
-- Select only that teacher's assigned class/division.
-- Select only subjects assigned for that class/division.
+- Select a class/division from the teacher's listed assignments.
+- Select a subject listed for that class/division.
 - Load students for that exact scope.
 - Add or update marks for that exact scope only.
 
-Frontend error handling covers loading failures, unauthorized assignment attempts, missing students, empty data, invalid marks, and save failures.
+Frontend error handling covers loading failures, missing students, empty data, invalid marks, and save failures.
 
 Build the frontend with:
 
