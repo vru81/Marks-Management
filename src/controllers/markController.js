@@ -2,7 +2,7 @@ import { Mark } from '../models/Mark.js';
 import { Student } from '../models/Student.js';
 import { Teacher } from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { canTeachAssignment, normalizeDivision } from '../utils/teacherAccess.js';
+import { normalizeDivision } from '../utils/teacherAccess.js';
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -24,10 +24,6 @@ async function saveTeacherMark(teacher, body = {}) {
 
   if (numericMarksObtained < 0 || numericMaxMarks < 1 || numericMarksObtained > numericMaxMarks) {
     throw httpError('marksObtained must be between 0 and maxMarks, and maxMarks must be at least 1', 400);
-  }
-
-  if (!canTeachAssignment(teacher, classNumber, division, subject)) {
-    throw httpError('Teacher can add marks only for assigned class, division, and subject', 403);
   }
 
   const normalizedDivision = normalizeDivision(division);
@@ -69,10 +65,6 @@ async function findTeacherMarks(teacher, queryParams) {
 
   if (!classNumber || !division || !subject) {
     throw httpError('class, division, and subject query params are required', 400);
-  }
-
-  if (!canTeachAssignment(teacher, classNumber, division, subject)) {
-    throw httpError('Teacher can view marks only for assigned class, division, and subject', 403);
   }
 
   const query = {

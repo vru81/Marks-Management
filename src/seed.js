@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
-import { Mark } from './models/Mark.js';
 import { Student } from './models/Student.js';
 import { Teacher } from './models/Teacher.js';
 import { students, teacherApiData, teachers } from './data/seedData.js';
@@ -11,10 +10,46 @@ let exitCode = 0;
 try {
   await connectDB();
 
-  await Promise.all([Teacher.deleteMany({}), Student.deleteMany({}), Mark.deleteMany({})]);
+  const teacherOperations = teachers.map((teacher) => ({
+    updateOne: {
+      filter: { externalId: teacher.externalId },
+      update: {
+        $set: {
+          name: teacher.name,
+          classTeacherOf: teacher.classTeacherOf,
+          assignments: teacher.assignments
+        },
+        $setOnInsert: {
+          externalId: teacher.externalId
+        }
+      },
+      upsert: true
+    }
+  }));
 
-  const createdTeachers = await Teacher.insertMany(teachers);
-  const createdStudents = await Student.insertMany(students);
+  const studentOperations = students.map((student) => ({
+    updateOne: {
+      filter: {
+        class: student.class,
+        division: student.division,
+        rollNumber: student.rollNumber
+      },
+      update: {
+        $set: { name: student.name },
+        $setOnInsert: {
+          class: student.class,
+          division: student.division,
+          rollNumber: student.rollNumber
+        }
+      },
+      upsert: true
+    }
+  }));
+
+  const [teacherResult, studentResult] = await Promise.all([
+    Teacher.bulkWrite(teacherOperations),
+    Student.bulkWrite(studentOperations)
+  ]);
 
   await mongoose.connection.collection('marks-management').replaceOne(
     { type: 'teachers' },
@@ -26,8 +61,8 @@ try {
     { upsert: true }
   );
 
-  console.log(`Seeded ${createdTeachers.length} teachers`);
-  console.log(`Seeded ${createdStudents.length} students`);
+  console.log(`Teachers added: ${teacherResult.upsertedCount}, updated: ${teacherResult.modifiedCount}`);
+  console.log(`Students added: ${studentResult.upsertedCount}, updated: ${studentResult.modifiedCount}`);
   console.log('Seeded marks-management teacher API document');
 } catch (error) {
   console.error(error.message);

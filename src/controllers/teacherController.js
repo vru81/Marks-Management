@@ -3,7 +3,7 @@ import { Teacher } from '../models/Teacher.js';
 import { Student } from '../models/Student.js';
 import { teacherApiData } from '../data/seedData.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { canTeachAssignment, normalizeDivision } from '../utils/teacherAccess.js';
+import { normalizeDivision } from '../utils/teacherAccess.js';
 
 export function formatTeacher(teacher) {
   return {
@@ -76,11 +76,6 @@ export const getAssignableStudents = asyncHandler(async (req, res) => {
     throw new Error('Teacher not found');
   }
 
-  if (!canTeachAssignment(teacher, classNumber, division, subject)) {
-    res.status(403);
-    throw new Error('Teacher is not assigned to this class, division, and subject');
-  }
-
   const students = await Student.find({
     class: Number(classNumber),
     division: normalizeDivision(division)
@@ -95,11 +90,6 @@ export const getMyAssignableStudents = asyncHandler(async (req, res) => {
   if (!classNumber || !division || !subject) {
     res.status(400);
     throw new Error('class, division, and subject query params are required');
-  }
-
-  if (!canTeachAssignment(req.teacher, classNumber, division, subject)) {
-    res.status(403);
-    throw new Error('Teacher is not assigned to this class, division, and subject');
   }
 
   const students = await Student.find({
